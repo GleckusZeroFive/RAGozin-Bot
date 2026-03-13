@@ -1,0 +1,11 @@
+services:
+  bot:
+    volumes:
+      - ./app:/app/app:ro
+      - ./alembic:/app/alembic:ro
+      - ./uploads:/app/uploads
+      - ./entrypoint.sh:/entrypoint.sh
+      - whisper_cache:/root/.cache/huggingface
+
+volumes:
+  whisper_cache:

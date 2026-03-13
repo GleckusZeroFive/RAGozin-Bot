@@ -1,0 +1,40 @@
+services:
+  bot:
+    build: .
+    env_file: .env
+    environment:
+      POSTGRES_HOST: localhost
+      QDRANT_HOST: localhost
+      LAW_API_URL: http://law-api:8100
+      MODULES_GATEWAY_URL: ${MODULES_GATEWAY_URL:-}
+      MODULES_API_KEY: ${MODULES_API_KEY:-}
+      HF_HOME: /app/models
+      HF_HUB_OFFLINE: "1"
+    extra_hosts:
+      - "host.docker.internal:172.17.0.1"
+    networks:
+      - default
+      - rag-shared
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - qdrant_data:/var/lib/qdrant/storage
+      - ./uploads:/app/uploads
+      - ./app:/app/app:ro
+      - whisper_cache:/root/.cache/huggingface
+      - st_models:/root/.cache/torch/sentence_transformers
+    restart: unless-stopped
+    # Раскомментировать для отладки:
+    # ports:
+    #   - "5432:5432"
+    #   - "6333:6333"
+
+volumes:
+  pg_data:
+  qdrant_data:
+  whisper_cache:
+  st_models:
+
+networks:
+  default:
+  rag-shared:
+    external: true
