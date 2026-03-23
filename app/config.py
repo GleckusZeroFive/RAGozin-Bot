@@ -8,6 +8,9 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
+    # === Bot Preset ===
+    bot_preset: str = "default"  # "corporate_faq", "client_faq", "legal_ocr", "tutor", "voice_assistant"
+
     # === Telegram ===
     telegram_bot_token: str = ""
 

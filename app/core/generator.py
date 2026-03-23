@@ -2,92 +2,12 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from app.bot.commands import COMMANDS_SHORT, format_commands_for_prompt
 from app.config import settings
 from app.llm.factory import get_llm_provider
+from app.presets import get_preset
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """Ты — ассистент по документам и российскому законодательству. \
-Отвечай на вопросы пользователя СТРОГО на основе предоставленного контекста.
-
-Контекст может включать:
-• Загруженные пользователем документы
-• Нормативно-правовые акты РФ из базы законодательства
-
-Правила:
-1. Если ответ есть в контексте — отвечай на его основе.
-2. Если ответа нет — честно скажи: "Информации по этому вопросу не найдено."
-3. Не придумывай информацию.
-4. Отвечай на том языке, на котором задан вопрос.
-5. Будь лаконичен, но информативен.
-6. Форматирование — используй HTML-теги для Telegram:
-   - Жирный: <b>текст</b>
-   - Курсив: <i>текст</i>
-   - Списки: символ • вместо дефиса
-   - НЕ используй Markdown (**, *, #, ```)
-   - НЕ используй <br> — для переноса строки используй обычный перенос
-7. НЕ дублируй источники в ответе — список источников добавляется автоматически.
-8. Если пользователь задаёт уточняющий вопрос (например, "А что ещё?", "Расскажи подробнее"), \
-учитывай предыдущие вопросы и ответы из диалога.
-9. При ссылке на правовые акты указывай их тип, номер и дату.
-10. Если предлагаешь команду бота — используй только: """ + COMMANDS_SHORT + """.
-
-Контекст из документов:
-{context}
-"""
-
-FOLLOWUP_PROMPT = """Ты — дружелюбный ассистент по документам и российскому законодательству.
-
-Пользователь задаёт уточняющий вопрос к твоему предыдущему ответу.
-
-Правила:
-1. Отвечай на основе истории диалога — предыдущие ответы содержат нужную информацию.
-2. Рассуждай на основе данных из истории. Не добавляй конкретные числа, факты или условия, \
-которых нет в предыдущих ответах ассистента.
-3. Если для ответа не хватает информации из истории — скажи об этом кратко \
-и предложи задать вопрос напрямую (не полагайся на общие знания).
-4. Отвечай на том языке, на котором задан вопрос.
-5. Будь лаконичен.
-6. Форматирование — используй HTML-теги для Telegram:
-   - Жирный: <b>текст</b>
-   - Курсив: <i>текст</i>
-   - Списки: символ • вместо дефиса
-   - НЕ используй Markdown (**, *, #, ```)
-   - НЕ используй <br> — для переноса строки используй обычный перенос
-"""
-
-CHAT_PROMPT = """Ты — RAGozin, дружелюбный ассистент. Ты помогаешь пользователям работать с документами: \
-загружать, индексировать и отвечать на вопросы по их содержимому. \
-Также умеешь искать по базе российского законодательства.
-
-Текущее состояние пользователя:
-{user_state}
-
-Доступные команды бота:
-""" + format_commands_for_prompt() + """
-
-Правила:
-1. Общайся естественно и дружелюбно. Ты — собеседник, не просто поисковик.
-2. Если пользователь спрашивает что ты умеешь или как работаешь — расскажи о своих возможностях: \
-поиск по загруженным документам (PDF, DOCX, TXT, MD), поиск по законодательству РФ (/law), \
-голосовые сообщения, уточняющие вопросы с учётом контекста диалога.
-3. Если пользователь спрашивает о документах, тарифе, лимитах — \
-отвечай на основе «Текущее состояние пользователя» выше. Используй реальные данные.
-4. Если пользователь хочет управлять документами (загрузить, удалить, обновить) — \
-подскажи соответствующую команду из списка выше.
-5. Если пользователь задаёт вопрос по теме, ответ на который может быть в его документах — \
-предложи задать этот вопрос, и ты поищешь в документах.
-6. НЕ упоминай команды, которых нет в списке выше.
-7. Отвечай на том языке, на котором задан вопрос.
-8. Будь лаконичен.
-9. Форматирование — HTML-теги для Telegram:
-   - Жирный: <b>текст</b>
-   - Курсив: <i>текст</i>
-   - Списки: символ • вместо дефиса
-   - НЕ используй Markdown (**, *, #, ```)
-   - НЕ используй <br> — для переноса строки используй обычный перенос
-"""
 
 
 class ResponseGenerator:
@@ -135,20 +55,30 @@ class ResponseGenerator:
         mode: str = "rag",
     ) -> list[dict[str, Any]]:
         """Собрать messages для LLM: system + history + question."""
+        preset = get_preset()
+        from app.bot.commands import format_commands_for_prompt, _get_commands_short
+
         if mode == "followup":
-            system_content = FOLLOWUP_PROMPT
+            system_content = preset.prompts.followup
         elif mode == "chat":
-            # Chat mode: если есть история диалога — скорее всего уточнение (follow-up)
-            # → используем FOLLOWUP_PROMPT чтобы избежать галлюцинаций
             if conversation_history:
-                system_content = FOLLOWUP_PROMPT
+                system_content = preset.prompts.followup
             else:
                 state = user_state or "Нет данных"
-                system_content = CHAT_PROMPT.format(user_state=state)
+                commands_list = format_commands_for_prompt()
+                system_content = preset.prompts.chat.format(
+                    bot_name=preset.name,
+                    user_state=state,
+                    commands_list=commands_list,
+                )
         elif not context_chunks:
-            # RAG без результатов → дружелюбный ассистент
             state = user_state or "Нет данных"
-            system_content = CHAT_PROMPT.format(user_state=state)
+            commands_list = format_commands_for_prompt()
+            system_content = preset.prompts.chat.format(
+                bot_name=preset.name,
+                user_state=state,
+                commands_list=commands_list,
+            )
         else:
             context_parts = []
             for chunk in context_chunks:
@@ -176,7 +106,9 @@ class ResponseGenerator:
                 context_parts.append(f"{label}\n{chunk['text']}")
 
             context = "\n\n---\n\n".join(context_parts)
-            system_content = SYSTEM_PROMPT.format(context=context)
+            system_content = preset.prompts.system.format(
+                context=context, commands_short=_get_commands_short(),
+            )
 
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_content},

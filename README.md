@@ -42,8 +42,22 @@ Document upload: files are chunked and dual-indexed into Qdrant (vectors) and BM
 - app/core/ — RAG pipeline, search, chunking, embeddings
 - app/db/ — Database models and migrations
 - app/llm/ — LLM integration and streaming
+- app/presets/ — YAML product presets (loader, default, corporate_faq)
 - app/config.py — Configuration management
 - app/main.py — Application entry point
+
+## Presets (Product Variants)
+
+The bot supports multiple product profiles via YAML presets. Same codebase deploys as different products.
+
+Set `BOT_PRESET=<name>` in `.env` to switch. Available presets:
+
+| Preset | Bot Name | Use Case |
+|--------|----------|----------|
+| `default` | RAGozin | General document Q&A + Russian law search |
+| `corporate_faq` | DocHelper | Corporate internal documentation assistant |
+
+Create custom presets by copying `app/presets/default.yml` and modifying prompts, messages, and features.
 
 ## License
 

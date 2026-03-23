@@ -39,5 +39,6 @@ pytest==8.3.4
 pytest-asyncio==0.24.0
 
 # Russian morphological analysis (lemmatization for BM25)
-pymorphy3>=2.4
-pymorphy3-dicts-ru>=2.4
+pymorphy3>=2.0
+pymorphy3-dicts-ru>=2.0
+PyYAML>=6.0

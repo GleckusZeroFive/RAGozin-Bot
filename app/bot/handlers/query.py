@@ -11,6 +11,7 @@ from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.presets import get_preset
 from app.core.classifier import classify_intent
 from app.core.conversation import get_context
 from app.core.embedder import EmbeddingServiceError
@@ -92,12 +93,28 @@ _GREETING_PATTERNS: list[re.Pattern[str]] = [
 
 # Слова-индикаторы содержательного запроса.
 # Если сообщение из 1-2 слов содержит такое слово — НЕ считаем quick-chat.
-_RAG_INDICATOR_WORDS = frozenset({
-    "закон", "статья", "пункт", "документ", "договор", "кодекс", "конституция",
-    "указ", "постановление", "приказ", "регламент", "инструкция", "акт",
-    "налог", "штраф", "суд", "иск", "жалоба", "апелляция", "кассация",
-    "api", "pdf", "steam", "ключ", "лицензия", "доступ", "сервис",
-})
+def _get_rag_indicator_words() -> frozenset[str]:
+    """RAG-индикаторные слова из пресета или дефолтные."""
+    preset = get_preset()
+    if preset.rag_keywords:
+        return frozenset(preset.rag_keywords)
+    return frozenset({
+        "закон", "статья", "пункт", "документ", "договор", "кодекс", "конституция",
+        "указ", "постановление", "приказ", "регламент", "инструкция", "акт",
+        "налог", "штраф", "суд", "иск", "жалоба", "апелляция", "кассация",
+        "api", "pdf", "steam", "ключ", "лицензия", "доступ", "сервис",
+    })
+
+
+# Кэшируем при первом вызове
+_rag_indicator_cache: frozenset[str] | None = None
+
+
+def _get_cached_rag_indicators() -> frozenset[str]:
+    global _rag_indicator_cache
+    if _rag_indicator_cache is None:
+        _rag_indicator_cache = _get_rag_indicator_words()
+    return _rag_indicator_cache
 
 # Маркеры начала уточняющего/follow-up вопроса.
 # Короткое сообщение (1-2 слова) с таким маркером — вероятный follow-up, не quick-chat.
@@ -125,7 +142,7 @@ def _is_quick_chat(text: str) -> bool:
     # если первое слово — дискурсивный маркер (А/И/Но/Тогда...) →
     # вероятный follow-up, отправляем к классификатору
     if len(words) <= 2:
-        has_indicator = any(w.rstrip("?!.,") in _RAG_INDICATOR_WORDS for w in words)
+        has_indicator = any(w.rstrip("?!.,") in _get_cached_rag_indicators() for w in words)
         if not has_indicator:
             first_word = words[0].rstrip("?!.,")
             if first_word in _FOLLOWUP_STARTERS:
@@ -164,9 +181,12 @@ def _build_user_state(user: "User", docs: list) -> str:
             docs_str += f" ({', '.join(doc_names)})"
         queries_str = f"{user.queries_today}/{user.queries_limit}"
 
-    law_str = "вкл" if user.law_search_enabled else "выкл"
-
-    return f"Тариф: {tier} | Документы: {docs_str} | Запросы сегодня: {queries_str} | Законодательство: {law_str}"
+    preset = get_preset()
+    base = f"Тариф: {tier} | Документы: {docs_str} | Запросы сегодня: {queries_str}"
+    if preset.features.law_search:
+        law_str = "вкл" if user.law_search_enabled else "выкл"
+        base += f" | Законодательство: {law_str}"
+    return base
 
 
 def _md_to_html(text: str) -> str:

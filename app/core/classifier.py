@@ -8,6 +8,7 @@ from typing import Literal
 
 from app.config import settings
 from app.llm.factory import get_llm_provider
+from app.presets import get_preset
 
 logger = logging.getLogger(__name__)
 
@@ -88,9 +89,15 @@ async def classify_intent(
             else "(нет документов)"
         )
         law_status = "включён" if law_search_enabled else "выключен"
-        system = _CLASSIFIER_SYSTEM.format(
-            doc_list=doc_list, law_status=law_status,
-        )
+        preset = get_preset()
+        classifier_template = preset.prompts.classifier
+        # Corporate presets may not have {law_status} placeholder
+        try:
+            system = classifier_template.format(
+                doc_list=doc_list, law_status=law_status,
+            )
+        except KeyError:
+            system = classifier_template.format(doc_list=doc_list)
 
         user_content = (
             f"История диалога:\n{history_text}\n\n"
