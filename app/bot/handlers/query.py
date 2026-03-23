@@ -294,11 +294,14 @@ def _build_final_response(
     """Собрать финальное HTML-сообщение с источниками и моделью."""
     response = _md_to_html(answer)
 
-    if sources:
+    # Не показываем источники, если бот сам сказал "не найдено"
+    _NOT_FOUND_MARKERS = ("не найдено", "не нашёл", "отсутствует информация", "нет информации")
+    answer_lower = answer.lower()
+    has_answer = not any(marker in answer_lower for marker in _NOT_FOUND_MARKERS)
+
+    if sources and has_answer:
         sources_text = _format_sources(sources)
         response = f"{response}\n\n<b>Источники:</b>\n{sources_text}"
-
-
     if law_search_failed:
         response += "\n\n<i>⚠️ Сервис законодательства временно недоступен.</i>"
 
