@@ -91,6 +91,14 @@ async def on_startup() -> None:
     except Exception as e:
         logger.error("Ошибка загрузки модели эмбеддингов: %s", e)
 
+    # Калибровка LLM-модели
+    try:
+        from app.core.calibrator import run_calibration
+        profile = await run_calibration()
+        logger.info("LLM calibration: %s", profile)
+    except Exception:
+        logger.warning("LLM calibration failed, using strict defaults")
+
 
 async def on_shutdown() -> None:
     global _reset_task

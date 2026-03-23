@@ -24,6 +24,8 @@ class PresetPrompts:
     classifier: str = ""
     hypothetical: str = ""
     rewrite: str = ""
+    system_strict: str = ""
+    followup_strict: str = ""
 
 
 @dataclass(frozen=True)
@@ -85,6 +87,8 @@ def _parse_preset(data: dict[str, Any]) -> Preset:
             classifier=prompts_data.get("classifier", ""),
             hypothetical=prompts_data.get("hypothetical", ""),
             rewrite=prompts_data.get("rewrite", ""),
+            system_strict=prompts_data.get("system_strict", ""),
+            followup_strict=prompts_data.get("followup_strict", ""),
         ),
         messages=PresetMessages(
             start=messages_data.get("start", ""),

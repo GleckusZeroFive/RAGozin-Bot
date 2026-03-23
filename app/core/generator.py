@@ -4,6 +4,7 @@ from typing import Any
 
 from app.config import settings
 from app.llm.factory import get_llm_provider
+from app.core.calibrator import get_model_profile
 from app.presets import get_preset
 
 logger = logging.getLogger(__name__)
@@ -58,8 +59,13 @@ class ResponseGenerator:
         preset = get_preset()
         from app.bot.commands import format_commands_for_prompt, _get_commands_short
 
+        profile = get_model_profile()
+
         if mode == "followup":
-            system_content = preset.prompts.followup
+            if not profile.follows_negative_instructions and preset.prompts.followup_strict:
+                system_content = preset.prompts.followup_strict
+            else:
+                system_content = preset.prompts.followup
         elif mode == "chat":
             if conversation_history:
                 system_content = preset.prompts.followup
@@ -106,7 +112,11 @@ class ResponseGenerator:
                 context_parts.append(f"{label}\n{chunk['text']}")
 
             context = "\n\n---\n\n".join(context_parts)
-            system_content = preset.prompts.system.format(
+            if not profile.follows_negative_instructions and preset.prompts.system_strict:
+                template = preset.prompts.system_strict
+            else:
+                template = preset.prompts.system
+            system_content = template.format(
                 context=context, commands_short=_get_commands_short(),
             )
 

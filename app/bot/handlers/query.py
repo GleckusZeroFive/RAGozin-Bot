@@ -121,6 +121,9 @@ def _get_cached_rag_indicators() -> frozenset[str]:
 _FOLLOWUP_STARTERS = frozenset({
     "а", "и", "но", "ещё", "еще", "ещe", "тогда", "плюс",
     "зачем", "почему", "когда", "как", "сколько", "откуда",
+    # follow-up слова, которые НЕ должны попадать в quick_chat
+    "подробнее", "детальнее", "продолжай", "дальше", "поподробнее",
+    "конкретнее", "уточни", "разверни", "поясни", "объясни",
 })
 
 
@@ -236,6 +239,24 @@ def _md_to_html(text: str) -> str:
     return text
 
 
+
+# ── Очистка LLM-сгенерированных ссылок на источники ──
+
+_SOURCE_LINE_RE = re.compile(
+    r"^\s*[Ии]сточник[и]?\s*[:—–\-].*$",
+    re.MULTILINE,
+)
+_SOURCE_INLINE_RE = re.compile(r"\((?:см\.|источник:?\s*)\s*[^)]+\)", re.IGNORECASE)
+
+
+def _strip_llm_sources(text: str) -> str:
+    """Удалить из ответа LLM строки вида 'Источник: ...' — они дублируют программатический блок."""
+    text = _SOURCE_LINE_RE.sub("", text)
+    text = _SOURCE_INLINE_RE.sub("", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.rstrip()
+
+
 def _format_sources(sources: list[dict]) -> str:
     """Компактное форматирование источников: группировка по файлу, диапазон страниц."""
     by_file: dict[str, set[int]] = defaultdict(set)
@@ -292,6 +313,7 @@ def _build_final_response(
     law_search_failed: bool,
 ) -> str:
     """Собрать финальное HTML-сообщение с источниками и моделью."""
+    answer = _strip_llm_sources(answer)
     response = _md_to_html(answer)
 
     # Не показываем источники, если бот сам сказал "не найдено"
@@ -613,11 +635,31 @@ async def route_and_process(
     )
 
     if intent == "rag":
+        conv_ctx_r = get_context(user.telegram_id)
+        conv_ctx_r.last_rag_query = question
         await _safe_edit_text(
             status_msg, _rag_status_text(ready_docs, user), parse_mode=None,
         )
         await process_query_text(question, status_msg, user, session, user_state=state)
+    elif intent == "followup":
+        conv_ctx_fw = get_context(user.telegram_id)
+        if conv_ctx_fw.last_rag_query and ready_docs:
+            # Последний вопрос был RAG — перенаправляем followup в RAG
+            conv_ctx_fw.last_rag_query = question
+            await _safe_edit_text(
+                status_msg, _rag_status_text(ready_docs, user), parse_mode=None,
+            )
+            await process_query_text(question, status_msg, user, session, user_state=state)
+        else:
+            await _safe_edit_text(status_msg, "Думаю...", parse_mode=None)
+            await process_query_text(
+                question, status_msg, user, session,
+                skip_retrieval=True, user_state=state, mode="followup",
+            )
     else:
+        # chat
+        conv_ctx_ch = get_context(user.telegram_id)
+        conv_ctx_ch.last_rag_query = None
         await _safe_edit_text(status_msg, "Думаю...", parse_mode=None)
         await process_query_text(
             question, status_msg, user, session,

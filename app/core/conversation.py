@@ -22,6 +22,7 @@ class ConversationContext:
     """Контекст диалога для одного пользователя."""
     history: list[QAPair] = field(default_factory=list)
     last_activity: float = field(default_factory=time.time)
+    last_rag_query: str | None = None
 
     def is_expired(self) -> bool:
         ttl_seconds = settings.conversation_ttl_minutes * 60
