@@ -42,7 +42,8 @@ class Settings(BaseSettings):
 
     # === LLM Primary (Cerebras) ===
     cerebras_api_url: str = "https://api.cerebras.ai/v1"
-    cerebras_api_key: str = ""  # csk-...
+    cerebras_api_key: str = ""
+    cerebras_api_keys: str = ""  # comma-separated keys for round-robin  # csk-...
     cerebras_model: str = "gpt-oss-120b"
 
     # === LLM Fallback (Claude через прокси на хосте) ===
@@ -51,7 +52,7 @@ class Settings(BaseSettings):
 
     # === LLM общие ===
     llm_fallback_enabled: bool = True  # авто-переключение на Claude при ошибке Cerebras
-    llm_temperature: float = 0.3
+    llm_temperature: float = 0.1
     llm_max_tokens: int = 1024
 
     # === Embeddings (локальная модель sentence-transformers) ===
@@ -65,7 +66,7 @@ class Settings(BaseSettings):
     chunker_mode: str = "advanced"  # "basic" | "advanced"
     min_chunk_size: int = 50  # чанки короче — пропускаются (мусор, колонтитулы)
     retriever_top_k: int = 5
-    retriever_score_threshold: float = 0.5
+    retriever_score_threshold: float = 0.35
 
     # === Hybrid search (BM25 + semantic + RRF) ===
     hybrid_search_enabled: bool = True
@@ -113,8 +114,8 @@ class Settings(BaseSettings):
     modules_api_key: str = ""  # tbm_...
 
     # === Стриминг (буферизированный вывод) ===
-    stream_tick_interval: float = 0.5      # секунд между обновлениями Telegram-сообщения
-    stream_chars_per_tick: int = 40        # символов за одно обновление (визуальная скорость)
+    stream_tick_interval: float = 1.5      # секунд между обновлениями Telegram-сообщения
+    stream_chars_per_tick: int = 120        # символов за одно обновление (визуальная скорость)
     stream_show_cursor: bool = True        # показывать курсор ▍ во время стриминга
 
     # === Загрузки ===

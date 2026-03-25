@@ -14,9 +14,9 @@ _HEADER_PATTERN = re.compile(
     r"^(?:"
     r"#{1,6}\s+.+|"                                                            # Markdown headers
     r"(?:Глава|Раздел|Часть|Chapter|Section|Part)\s+[\dIVXLCDM]+[.:)]*\s*.*|"  # Явные маркеры глав
-    r"[А-ЯA-Z][А-ЯA-Z\s\d]{3,80}$"                                            # КАПС-строки
+    r"[А-ЯA-Z][А-ЯA-Z\s\d.]{3,80}$"                                            # КАПС-строки
     r")",
-    re.MULTILINE,
+    re.MULTILINE | re.IGNORECASE,
 )
 
 
@@ -138,6 +138,9 @@ class AdvancedChunker:
         Для каждого сегмента определить номер страницы и заголовок раздела.
         Если маркеров нет — весь текст = один сегмент.
         """
+        # Препроцессинг: убрать декоративные разделители (═══...═══)
+        text = re.sub(r"\n[═=]{5,}\n", "\n\n", text)
+
         page_markers = list(_PAGE_PATTERN.finditer(text))
 
         if not page_markers:

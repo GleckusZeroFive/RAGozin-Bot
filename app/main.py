@@ -7,7 +7,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from app.bot.handlers import docs_router, keys_router, law_router, query_router, start_router, update_router, upload_router, voice_router
+from app.bot.handlers import docs_router, keys_router, law_router, query_router, quiz_router, start_router, update_router, upload_router, voice_router
 from app.bot.middlewares import AuthMiddleware
 from app.config import settings
 from app.db.database import db
@@ -139,6 +139,7 @@ async def main() -> None:
     dp.include_router(update_router)  # ДО upload — FSM перехватывает F.document в replace_upload
     dp.include_router(upload_router)
     dp.include_router(law_router)      # /law, /lawstats — до query чтобы не перехватывался
+    dp.include_router(quiz_router)    # квиз по документам
     dp.include_router(voice_router)   # голосовые → текст → RAG / подсказка команды
     dp.include_router(query_router)   # последним — fallback для текстовых сообщений
 

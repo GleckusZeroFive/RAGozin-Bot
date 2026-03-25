@@ -120,6 +120,10 @@ class ResponseGenerator:
                 context=context, commands_short=_get_commands_short(),
             )
 
+        # Disable Qwen3 thinking mode to avoid wasting tokens on <think> blocks
+        if "qwen" in (self.provider.model or "").lower():
+            system_content += "\n/no_think"
+
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_content},
         ]
@@ -211,6 +215,7 @@ class ResponseGenerator:
                     "который непосредственно отвечает на вопрос пользователя. "
                     "Пиши от третьего лица, как справочный текст. "
                     "Если не знаешь точного ответа — напиши правдоподобный фрагмент."
+                    "\n/no_think"
                 ),
             },
             {"role": "user", "content": question},
@@ -251,7 +256,7 @@ class ResponseGenerator:
             )
 
         messages = [
-            {"role": "system", "content": "Ты — система переформулировки запросов."},
+            {"role": "system", "content": "Ты — система переформулировки запросов.\n/no_think"},
             {"role": "user", "content": prompt},
         ]
         rewritten = await self.provider.generate(messages, max_tokens=100)

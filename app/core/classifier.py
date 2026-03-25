@@ -10,6 +10,16 @@ from app.config import settings
 from app.llm.factory import get_llm_provider
 from app.presets import get_preset
 
+# ONNX classifier (local, fast, free)
+_ONNX_AVAILABLE = False
+try:
+    from app.core.onnx_classifier import classify_intent_onnx
+    _ONNX_AVAILABLE = True
+except ImportError:
+    pass
+
+_ONNX_CONFIDENCE_THRESHOLD = 0.75  # below this, fallback to LLM
+
 logger = logging.getLogger(__name__)
 
 Intent = Literal["rag", "chat", "followup"]
@@ -70,15 +80,35 @@ async def classify_intent(
     doc_names: list[str] | None = None,
     law_search_enabled: bool = False,
 ) -> Intent:
-    """Классифицировать намерение пользователя через LLM.
+    """Классифицировать намерение пользователя.
+
+    Стратегия: ONNX модель (3.7ms, бесплатно) → LLM fallback (1-2s, платно).
+    ONNX используется при confidence >= 0.75, иначе LLM.
 
     Returns:
         "rag"      — нужен поиск по документам
         "chat"     — разговорный режим, без поиска
         "followup" — уточнение к предыдущему ответу бота
-
-    При ошибке LLM возвращает "chat" (безопасное умолчание).
     """
+    # --- ONNX classifier (primary) ---
+    if _ONNX_AVAILABLE:
+        try:
+            intent, confidence = classify_intent_onnx(question)
+            if confidence >= _ONNX_CONFIDENCE_THRESHOLD:
+                logger.info(
+                    "ONNX классификатор: '%s' → %s (%.1f%%)",
+                    question[:80], intent, confidence * 100,
+                )
+                return intent  # type: ignore[return-value]
+            else:
+                logger.info(
+                    "ONNX low confidence: '%s' → %s (%.1f%%), fallback to LLM",
+                    question[:80], intent, confidence * 100,
+                )
+        except Exception:
+            logger.warning("ONNX classifier error, fallback to LLM", exc_info=True)
+
+    # --- LLM classifier (fallback) ---
     try:
         provider = get_llm_provider()
         history_text = _format_history_snippet(history)

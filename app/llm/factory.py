@@ -1,5 +1,5 @@
 from app.config import settings
-from app.llm.provider import FallbackProvider, OpenAICompatibleProvider
+from app.llm.provider import FallbackProvider, OpenAICompatibleProvider, RoundRobinKeyManager
 
 _provider: OpenAICompatibleProvider | FallbackProvider | None = None
 
@@ -15,10 +15,18 @@ def get_llm_provider() -> OpenAICompatibleProvider | FallbackProvider:
         return _provider
 
     if settings.cerebras_api_key:
+        # Build round-robin key manager if multiple keys provided
+        key_manager = None
+        if settings.cerebras_api_keys:
+            keys = [k.strip() for k in settings.cerebras_api_keys.split(",") if k.strip()]
+            if len(keys) > 1:
+                key_manager = RoundRobinKeyManager(keys)
+
         primary = OpenAICompatibleProvider(
             base_url=settings.cerebras_api_url,
             model=settings.cerebras_model,
             api_key=settings.cerebras_api_key,
+            key_manager=key_manager,
         )
         if settings.llm_fallback_enabled:
             fallback = OpenAICompatibleProvider(

@@ -194,6 +194,8 @@ def _build_user_state(user: "User", docs: list) -> str:
 
 def _md_to_html(text: str) -> str:
     """Конвертация Markdown → Telegram HTML (safety net на случай если LLM проигнорирует промпт)."""
+    # Убираем CJK-символы, которые Qwen3 иногда вставляет в русский текст
+    text = re.sub(r"[一-鿿㐀-䶿　-〿＀-￯]+", "", text)
     # Убираем артефакты LLM (внутренние теги моделей)
     text = re.sub(r"</?assistant>", "", text)
     # Нормализуем HTML-теги: <strong> -> <b>, <em> -> <i> (Telegram не поддерживает strong/em)
@@ -248,9 +250,13 @@ _SOURCE_LINE_RE = re.compile(
 )
 _SOURCE_INLINE_RE = re.compile(r"\((?:см\.|источник:?\s*)\s*[^)]+\)", re.IGNORECASE)
 
+# Qwen3 thinking blocks — strip <think>...</think> from output
+_THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+
 
 def _strip_llm_sources(text: str) -> str:
-    """Удалить из ответа LLM строки вида 'Источник: ...' — они дублируют программатический блок."""
+    """Удалить из ответа LLM строки вида 'Источник: ...' и <think> блоки Qwen3."""
+    text = _THINK_BLOCK_RE.sub("", text)
     text = _SOURCE_LINE_RE.sub("", text)
     text = _SOURCE_INLINE_RE.sub("", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
@@ -315,6 +321,10 @@ def _build_final_response(
     """Собрать финальное HTML-сообщение с источниками и моделью."""
     answer = _strip_llm_sources(answer)
     response = _md_to_html(answer)
+
+    # Если ответ пустой после обработки — заменяем на "не найдено"
+    if not response.strip():
+        response = "В загруженных документах ответа на этот вопрос не найдено."
 
     # Не показываем источники, если бот сам сказал "не найдено"
     _NOT_FOUND_MARKERS = ("не найдено", "не нашёл", "отсутствует информация", "нет информации")
@@ -419,6 +429,11 @@ async def _stream_to_telegram(
                     sources = event["sources"]
                     model = event["model"]
                     law_search_failed = event.get("law_search_failed", False)
+                    # Update status: search done, generation starting
+                    try:
+                        await status_msg.edit_text("Генерирую ответ...", parse_mode=None)
+                    except Exception:
+                        pass
                     continue
                 text = event["text"] if isinstance(event, dict) else event
                 buffer += text
