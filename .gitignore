@@ -39,3 +39,5 @@ logs/
 qdrant-bin
 CLAUDE.md
 .claude/
+app/core/intent_model/model.onnx.data
+app/core/intent_model/model.onnx
